@@ -1,0 +1,187 @@
+<html>
+<head>
+
+<link type="text/css" rel="stylesheet" href="https://bost.ocks.org/mike/style.css?20120427"">
+<script src="https://cdn.pubnub.com/pubnub-dev.js"></script>
+<script src="js/d3.v3.min.js"></script>
+<style type="text/css">
+
+    body {
+        font-family: Verdana, sans-serif;
+        font-size: 8pt;
+        line-height: 12pt;
+        background: #ffffff;
+        color: #555555;
+    }
+
+    .axis path, .axis line {
+        fill: none;
+        stroke: #555555;
+        shape-rendering: crispEdges;
+    }
+	
+  
+    .line {
+        fill: none;
+        stroke: red;
+        stroke-width: 1px;
+    }
+		
+</style>
+<script>
+  var t = -1;
+    var n = 50;
+    var v = 0;
+	var x,y,svg,data,path,line,axis,xAxis;
+   	 var time = new Date;
+	var pubnubData = [];
+    function next () {
+		
+	var last_element = pubnubData[pubnubData.length - 1];
+	console.log("To return"+JSON.stringify(last_element));
+	return last_element;
+      /* return {
+            time: ++t,
+            value: v = Math.floor(Math.random()*20)
+        };*/
+    }	
+	 function setupChart()
+	 {
+	 data = d3.range(n).map(next);
+    var margin = {top: 10, right: 10, bottom: 20, left: 40},
+        width = 960 - margin.left - margin.right,
+        height = 500 - margin.top - margin.bottom;
+
+    x = d3.scale.linear()
+        .domain([0, n - 1])
+        .range([0, width]);
+	 
+    var y = d3.scale.linear()
+        .domain([0,100])
+        .range([height, 0]);
+	 
+    line = d3.svg.line()
+        .x(function(d, i) { //console.log(d.time); 
+		return x(d.time); })
+        .y(function(d, i) { return y(d.value); });
+		 
+    var svg = d3.select("body").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom);
+	
+    var g = svg.append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+    var graph = g.append("svg")
+        .attr("width", width)
+        .attr("height", height + margin.top + margin.bottom);	
+	 
+    xAxis = d3.svg.axis().scale(x).orient("bottom");
+    axis = graph.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis);
+	 
+    g.append("g")
+        .attr("class", "y axis")
+        .call(d3.svg.axis().scale(y).orient("left"));
+	 
+	path = graph.append("g")
+		.append("path")
+		.data([data])
+		.attr("class", "line")
+		.attr("d", line);
+		
+    tick(data);
+		} 
+    function tick(data) 
+	{ 
+        // push a new data point onto the back
+		var dataObj = next();
+		console.log("data"+JSON.stringify(dataObj));
+		var last_element = pubnubData[pubnubData.length - 1];
+	console.log(JSON.stringify(last_element));
+        data.push(next());
+	//	data.push(obj);
+        // update domain
+        x.domain([t - n, t]);
+	
+        // redraw path, shift path left
+        path
+            .attr("d", line)
+            .attr("transform", null)
+            .transition()
+            .duration(1000)
+            .ease("linear")
+            .attr("transform", "translate(" + t - 1 + ")")
+            .each("end", tick);
+	
+        // shift axis left
+        axis
+            .transition()
+            .duration(1000)
+            .ease("linear")
+            .call(d3.svg.axis().scale(x).orient("bottom"));
+	 
+        // pop the old data point off the front
+        data.shift();	 
+    } 
+    var alreadySetup = false;
+    var pubnub = PUBNUB.init({
+        publish_key: 'pub-c-7d846157-da7e-40aa-b241-a671ba45986b',
+        subscribe_key: 'sub-c-7396d71c-f629-11e5-8679-02ee2ddab7fe'
+    });
+  pubnub.subscribe({
+        channel: 'tableau_local',
+        message: function(m){
+		if(!alreadySetup)
+		{
+		alreadySetup = true;
+		//alert('not here');
+		pubnubData.push({time:m.x,value:m.y[0]});
+		setupChart();
+		}
+		else
+		{
+		console.log(m);
+		pubnubData.push({time:m.x,value:m.y[0]});
+		//alert('here');
+		}
+		
+		//pubnubData.push(m);
+		}
+    });
+function processRawData(m)
+{
+	console.log('got');
+	console.log(m.x);
+	pubnubData.push({time:getTime(),value:m.y});
+	var last_element = pubnubData[pubnubData.length - 1];
+	console.log(JSON.stringify(last_element));
+		//data.push({time:m.x,value:m.y*100})
+}
+
+setInterval(function(){
+
+  pubnub.publish({
+    channel: 'tableau_local',
+    message: {
+      y: [
+        Math.floor((Math.random() * 99) + 1), 
+        Math.floor((Math.random() * 99) + 1)
+      ],
+      x: ++t
+	  
+    }
+  })
+}, 1000);
+
+</script>
+
+</head>
+
+<body>
+    <h4>Animated line chart</h4>	
+</body>
+</html>
+	 
